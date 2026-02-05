@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation"; // ✅ correct for app directory
 
 const SignUp = () => {
   const [email, setEmail] = useState("");
