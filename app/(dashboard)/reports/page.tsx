@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ColumnDef,
   flexRender,
@@ -8,6 +8,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+
 import {
   Table,
   TableBody,
@@ -16,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
   Pagination,
   PaginationContent,
@@ -24,6 +26,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
 import {
   Sheet,
   SheetContent,
@@ -32,6 +35,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
+
 import {
   Select,
   SelectContent,
@@ -39,135 +43,338 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
-import { CalendarIcon, Pencil, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+
+import { Pencil, Trash2 } from "lucide-react";
 
 /* ================= TYPES ================= */
+type RemarksValue = "Done" | "Pending" | "";
+type StatusValue = "Pending" | "Due Date" | "Finish";
+
 type Report = {
-  itemId: number;
-  itemNumber: string;
-  program: string;
-  partName: string;
-  validationDate: string;
-  nextValidationDate: string;
-  remarks: string;
-  comments?: string; // new column
+  ID: number;
+  Items: string;
+  Program: string;
+  PartName: string;
+  ValidationDate: string; // MM/DD/YYYY
+  NextValidationDate: string; // MM/DD/YYYY
+  Remarks: RemarksValue;
+  Person: string;
+  Comments?: string;
 };
 
-/* ================= HELPERS ================= */
-const getDaysRemaining = (nextDate: string) => {
-  const today = new Date();
-  const next = new Date(nextDate);
-  return Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+/* ================= DATE HELPERS ================= */
+const formatToMMDDYYYY = (d?: Date | null): string => {
+  if (!d || isNaN(d.getTime())) return "";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
 };
 
-/* ================= MOCK DATA ================= */
-const data: Report[] = Array.from({ length: 20 }, (_, i) => {
-  const today = new Date();
-  const validationDate = new Date(today);
-  validationDate.setMonth(today.getMonth() - 6);
+const parseMMDDYYYY = (s?: string): Date | null => {
+  if (!s) return null;
+  const parts = s.split("/");
+  if (parts.length !== 3) return null;
+  const d = new Date(Number(parts[2]), Number(parts[0]) - 1, Number(parts[1]));
+  if (isNaN(d.getTime())) return null;
+  return d;
+};
 
-  const nextValidationDate = new Date(today);
-  nextValidationDate.setDate(today.getDate() + (i - 5) * 3);
+const toInputValue = (mmddyyyy?: string): string => {
+  const d = parseMMDDYYYY(mmddyyyy);
+  if (!d) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+};
 
-  return {
-    itemId: i + 1,
-    itemNumber: `PN-${1000 + i}`,
-    program: i % 2 === 0 ? "Engine" : "Hydraulics",
-    partName: `Part ${i + 1}`,
-    validationDate: validationDate.toISOString().split("T")[0],
-    nextValidationDate: nextValidationDate.toISOString().split("T")[0],
-    remarks: "",
-    comments: "",
-  };
-});
+const fromInputToMMDDYYYY = (val?: string): string => {
+  if (!val) return "";
+  const [y, m, d] = val.split("-");
+  return `${m}/${d}/${y}`;
+};
 
+const normalizeToMMDDYYYY = (s: any): string => {
+  if (!s || typeof s !== "string") return "";
+  const maybe = parseMMDDYYYY(s);
+  if (maybe) return formatToMMDDYYYY(maybe);
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return formatToMMDDYYYY(d);
+  return "";
+};
+
+/* ================= STATUS HELPERS (DYNAMIC) ================= */
+/** Days until given date relative to `now` */
+const daysUntil = (mmddyyyy: string | undefined, now: Date): number => {
+  const d = parseMMDDYYYY(mmddyyyy);
+  if (!d) return Number.POSITIVE_INFINITY;
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startDue = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.ceil((startDue - startNow) / (1000 * 60 * 60 * 24));
+};
+
+/** Derive current status based on Remarks + NextValidationDate against `now` */
+const deriveStatus = (r: Report, now: Date): StatusValue => {
+  if (r.Remarks === "Done") return "Finish";
+  const left = daysUntil(r.NextValidationDate, now);
+  if (left < 5) return "Due Date";
+  return "Pending";
+};
+
+/* ================= COMMENT CELL ================= */
+function CommentCell({ value }: { value?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = value ?? "";
+  const long = text.length > 255;
+
+  return (
+    <div className="whitespace-normal break-words max-w-[40ch] md:max-w-[60ch]">
+      {expanded ? text : text.slice(0, 255)}
+      {!expanded && long ? "…" : ""}
+      {long && (
+        <button
+          className="ml-1 text-xs text-blue-600 hover:underline"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ================= MAIN COMPONENT ================= */
 export default function Reports() {
+  const [reports, setReports] = useState<Report[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+
   const [yearFilter, setYearFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | StatusValue>("all");
+
+  /* Person search (free text) */
+  const [personQuery, setPersonQuery] = useState<string>("");
+
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [validationDate, setValidationDate] = useState<Date>();
-  const [nextValidationDate, setNextValidationDate] = useState<Date>();
-  const [comments, setComments] = useState<string>("");
 
-  const handleEdit = (report: Report) => {
-    setSelectedReport(report);
-    setValidationDate(new Date(report.validationDate));
-    setNextValidationDate(new Date(report.nextValidationDate));
-    setComments(report.comments ?? "");
-    setIsEditOpen(true);
+  const [validationDate, setValidationDate] = useState("");
+  const [nextValidationDate, setNextValidationDate] = useState("");
+  const [comments, setComments] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  /* NEW: dynamic 'now' that updates periodically so status auto-refreshes */
+  const [now, setNow] = useState<Date>(new Date());
+
+  useEffect(() => {
+    // Tick every 60 seconds (tune as needed). Keeps statuses current.
+    const id = setInterval(() => setNow(new Date()), 3);
+
+    // OPTIONAL: also re-tick when tab becomes visible (if user returns after hours)
+    const onVisible = () => setNow(new Date());
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
+
+  /* ================= FETCH REPORTS ================= */
+  const fetchReports = async () => {
+    try {
+      const res = await fetch("/api/fetch-reports/", { cache: "no-store" });
+      const data = await res.json();
+
+      const normalized: Report[] = (data.records || []).map((r: any) => ({
+        ID: Number(r.ID),
+        Items: r.Items ?? "",
+        Program: r.Program ?? "",
+        PartName: r.PartName ?? "",
+        ValidationDate: normalizeToMMDDYYYY(r.ValidationDate),
+        NextValidationDate: normalizeToMMDDYYYY(r.NextValidationDate),
+        Remarks: ["Done", "Pending"].includes(r.Remarks) ? r.Remarks : "",
+        Comments: r.Comments ?? "",
+        Person: r.Person ?? "",
+      }));
+
+      setReports(normalized);
+    } catch (err) {
+      console.error("FETCH ERROR:", err);
+    }
   };
 
-  const filteredData = useMemo(() => {
-    const base =
+  /* ================= EDIT ================= */
+  const handleEditImmediate = async (r: Report) => {
+  setLoading(true);
+
+  try {
+    const payload = {
+      ID: r.ID,
+      Items: r.Items,
+      Program: r.Program,
+      PartName: r.PartName,
+      ValidationDate: r.ValidationDate || null,
+      NextValidationDate: r.NextValidationDate || null,
+      Remarks: r.Remarks,
+      Comments: r.Comments?.slice(0, 255) || "",
+      Person: r.Person,
+    };
+
+    const res = await fetch("/api/update-record", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    await fetchReports(); // refresh table
+  } catch (err) {
+    alert("Update error: " + (err as any).message);
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  /* ================= SAVE ================= */
+  const handleSave = async (e: any) => {
+    e.preventDefault();
+    if (!selectedReport) return;
+
+    setLoading(true);
+    try {
+      const payload = {
+        ID: selectedReport.ID > 0 ? selectedReport.ID : undefined,
+        Items: selectedReport.Items,
+        Program: selectedReport.Program,
+        PartName: selectedReport.PartName,
+        ValidationDate: validationDate,
+        NextValidationDate: nextValidationDate,
+        Remarks: selectedReport.Remarks,
+        Comments: comments.slice(0, 255),
+        Person: selectedReport.Person,
+      };
+
+      const res = await fetch("/api/add-inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      await fetchReports();
+      setIsEditOpen(false);
+    } catch (err) {
+      alert("Save error: " + (err as any).message);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  /* ================= FILTER (YEAR + STATUS + PERSON QUERY) ================= */
+  const filtered = useMemo(() => {
+    let data =
       yearFilter === "all"
-        ? data
-        : data.filter(
-            (item) =>
-              new Date(item.validationDate).getFullYear().toString() ===
+        ? reports
+        : reports.filter(
+            (r) =>
+              parseMMDDYYYY(r.ValidationDate)?.getFullYear().toString() ===
               yearFilter,
           );
-    return [...base].sort(
-      (a, b) =>
-        getDaysRemaining(a.nextValidationDate) -
-        getDaysRemaining(b.nextValidationDate),
-    );
-  }, [yearFilter]);
 
+    if (statusFilter !== "all") {
+      data = data.filter((r) => deriveStatus(r, now) === statusFilter);
+    }
+
+    if (personQuery.trim() !== "") {
+      const needle = personQuery.trim().toLowerCase();
+      data = data.filter((r) => (r.Person ?? "").toLowerCase().includes(needle));
+    }
+
+    return data;
+  }, [reports, yearFilter, statusFilter, personQuery, now]); // <- include `now` so it refilters dynamically
+
+  /* ================= TABLE COLUMNS ================= */
   const columns: ColumnDef<Report>[] = [
-    { accessorKey: "itemId", header: "ID" },
-    { accessorKey: "itemNumber", header: "Item Number / Parts Number" },
-    { accessorKey: "program", header: "Program" },
-    { accessorKey: "partName", header: "Part Name" },
-    { accessorKey: "validationDate", header: "Validation Date" },
-    { accessorKey: "nextValidationDate", header: "Next Validation Date" },
+    { accessorKey: "Items", header: "Items" },
+    { accessorKey: "Program", header: "Program" },
+    { accessorKey: "PartName", header: "Part Name" },
+    { accessorKey: "ValidationDate", header: "Validation Date" },
+    { accessorKey: "NextValidationDate", header: "Next Validation Date" },
+  
     {
-      id: "remarks",
-      header: "Remarks",
+      id: "status",
+      header: "Remarks Status",
       cell: ({ row }) => {
-        const daysLeft = getDaysRemaining(row.original.nextValidationDate);
-        const isDueSoon = daysLeft <= 5;
+        const status = deriveStatus(row.original, now); // <- use `now` here dynamically
+        const color =
+          status === "Finish"
+            ? "bg-green-100 text-green-700"
+            : status === "Due Date"
+            ? "bg-red-100 text-red-700"
+            : "bg-yellow-100 text-yellow-700";
+
         return (
           <span
-            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-              isDueSoon
-                ? "bg-red-100 text-red-700"
-                : "bg-green-100 text-green-700"
-            }`}
+            className={`px-3 py-1 rounded-full text-xs font-semibold block text-center whitespace-normal break-words max-w-[150px] ${color}`}
           >
-            {isDueSoon ? "Need to validate before due date" : "Validated"}
+            {status === "Due Date"
+              ? "Need to validate before due date"
+              : status}
           </span>
         );
       },
     },
-    { accessorKey: "comments", header: "Comments" },
+
+    { accessorKey: "Remarks", header: "Remarks" },
+    { 
+      accessorKey: "Person", 
+      header: "Person",
+      cell: ({ row }) => row.original.Person || "-" // fallback if null/empty
+    },
+    {
+      accessorKey: "Comments",
+      header: "Comments",
+      cell: ({ row }) => <CommentCell value={row.original.Comments} />,
+    },
+
     {
       id: "actions",
       header: () => <div className="text-center">Actions</div>,
-      size: 80,
       cell: ({ row }) => (
-        <div className="flex justify-center gap-1 whitespace-nowrap">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => handleEdit(row.original)}
-          >
-            <Pencil className="h-4 w-4 text-blue-600" />
-          </Button>
+        <div className="flex gap-1 justify-center">
+      <Button
+  size="icon"
+  variant="ghost"
+  onClick={() => {
+    setSelectedReport(row.original);
+    setValidationDate(row.original.ValidationDate);
+    setNextValidationDate(row.original.NextValidationDate);
+    setComments(row.original.Comments || "");
+    setIsEditOpen(true);
+  }}
+>
+  <Pencil className="h-4 w-4 text-blue-600" />
+</Button>
 
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+
+          <Button size="icon" variant="ghost">
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
         </div>
@@ -176,60 +383,93 @@ export default function Reports() {
   ];
 
   const table = useReactTable({
-    data: filteredData,
+    data: filtered,
     columns,
     state: { pagination: { pageIndex, pageSize } },
     onPaginationChange: (updater) => {
-      const next =
+      const newState =
         typeof updater === "function"
           ? updater({ pageIndex, pageSize })
           : updater;
-      setPageIndex(next.pageIndex);
-      setPageSize(next.pageSize);
+      setPageIndex(newState.pageIndex);
+      setPageSize(newState.pageSize);
     },
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+  /* ================= RENDER ================= */
   return (
-    <div className="p-6">
+    <div className="w-full">
       {/* HEADER */}
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">Reports</h1>
+        <h1 className="text-2xl font-semibold">Inventory</h1>
 
-        <div className="flex items-center gap-4">
+        <div className="flex gap-4 flex-wrap items-center">
           {/* YEAR FILTER */}
           <Select
             value={yearFilter}
-            onValueChange={(val) => {
-              setYearFilter(val);
+            onValueChange={(v) => {
+              setYearFilter(v);
               setPageIndex(0);
             }}
           >
             <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Filter Year" />
+              <SelectValue placeholder="Filter year" />
             </SelectTrigger>
+
             <SelectContent className="bg-white">
-              <SelectItem value="all">All Years</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               <SelectItem value="2025">2025</SelectItem>
               <SelectItem value="2026">2026</SelectItem>
             </SelectContent>
           </Select>
 
-          {/* ROWS PER PAGE */}
+          {/* STATUS FILTER */}
           <Select
-            value={
-              pageSize === filteredData.length ? "all" : pageSize.toString()
-            }
+            value={statusFilter}
+            onValueChange={(v: "all" | StatusValue) => {
+              setStatusFilter(v);
+              setPageIndex(0);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter status" />
+            </SelectTrigger>
+
+            <SelectContent className="bg-white">
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Due Date">Due Date</SelectItem>
+              <SelectItem value="Finish">Finish</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* PERSON SEARCH */}
+          <div className="w-[200px]">
+            <Input
+              value={personQuery}
+              onChange={(e) => {
+                setPersonQuery(e.target.value);
+                setPageIndex(0);
+              }}
+              placeholder="Search person…"
+            />
+          </div>
+
+          {/* ROW SELECTOR */}
+          <Select
+            value={pageSize === filtered.length ? "all" : pageSize.toString()}
             onValueChange={(val) => {
               setPageIndex(0);
-              if (val === "all") setPageSize(filteredData.length || 1);
+              if (val === "all") setPageSize(filtered.length || 1);
               else setPageSize(Number(val));
             }}
           >
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Rows per page" />
             </SelectTrigger>
+
             <SelectContent className="bg-white">
               <SelectItem value="10">10</SelectItem>
               <SelectItem value="20">20</SelectItem>
@@ -240,115 +480,169 @@ export default function Reports() {
           </Select>
 
           {/* ADD / EDIT SHEET */}
-          <Sheet open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <Sheet
+            open={isEditOpen}
+            onOpenChange={(o) => {
+              if (!o) setSelectedReport(null);
+              setIsEditOpen(o);
+            }}
+          >
             <SheetTrigger asChild>
               <Button
-                className="bg-green-500 text-white hover:bg-green-700"
                 onClick={() => {
-                  setSelectedReport(null);
-                  setValidationDate(undefined);
-                  setNextValidationDate(undefined);
+                  setSelectedReport({
+                    ID: 0,
+                    Items: "",
+                    Program: "",
+                    PartName: "",
+                    ValidationDate: "",
+                    NextValidationDate: "",
+                    Remarks: "Done",
+                    Comments: "",
+                    Person: "",
+                  });
+
+                  setValidationDate("");
+                  setNextValidationDate("");
                   setComments("");
+
                   setIsEditOpen(true);
                 }}
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
-                Add New Report
+                Add New
               </Button>
             </SheetTrigger>
 
             <SheetContent className="bg-white">
               <SheetHeader>
                 <SheetTitle>
-                  {selectedReport ? "Edit Report" : "Add New Report"}
+                  {selectedReport?.ID ? "Edit" : "Add"} Report
                 </SheetTitle>
-                <SheetDescription>Fill in the details below.</SheetDescription>
+                <SheetDescription>Fill in all fields</SheetDescription>
               </SheetHeader>
 
-              <form className="space-y-4 mt-4">
+              {/* FORM */}
+              <form className="mt-4 space-y-4" onSubmit={handleSave}>
                 <div>
-                  <Label>Item Number / Parts Number</Label>
-                  <Input defaultValue={selectedReport?.itemNumber ?? ""} />
+                  <Label>Items</Label>
+                  <Input
+                    value={selectedReport?.Items || ""}
+                    onChange={(e) =>
+                      setSelectedReport((p) =>
+                        p ? { ...p, Items: e.target.value } : p,
+                      )
+                    }
+                  />
                 </div>
+
                 <div>
                   <Label>Program</Label>
-                  <Input defaultValue={selectedReport?.program ?? ""} />
+                  <Input
+                    value={selectedReport?.Program || ""}
+                    onChange={(e) =>
+                      setSelectedReport((p) =>
+                        p ? { ...p, Program: e.target.value } : p,
+                      )
+                    }
+                  />
                 </div>
+
                 <div>
                   <Label>Part Name</Label>
-                  <Input defaultValue={selectedReport?.partName ?? ""} />
+                  <Input
+                    value={selectedReport?.PartName || ""}
+                    onChange={(e) =>
+                      setSelectedReport((p) =>
+                        p ? { ...p, PartName: e.target.value } : p,
+                      )
+                    }
+                  />
                 </div>
 
                 <div>
                   <Label>Validation Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {validationDate
-                          ? format(validationDate, "PPP")
-                          : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <Calendar
-                        mode="single"
-                        selected={validationDate}
-                        onSelect={setValidationDate}
-                        className="bg-white"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <input
+                    type="date"
+                    value={toInputValue(validationDate)}
+                    onChange={(e) =>
+                      setValidationDate(fromInputToMMDDYYYY(e.target.value))
+                    }
+                    className="w-full border rounded p-2"
+                  />
                 </div>
 
                 <div>
                   <Label>Next Validation Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {nextValidationDate
-                          ? format(nextValidationDate, "PPP")
-                          : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <Calendar
-                        mode="single"
-                        selected={nextValidationDate}
-                        onSelect={setNextValidationDate}
-                        className="bg-white"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div>
-                  <Label>Remarks</Label>
-                  <Input defaultValue={selectedReport?.remarks ?? ""} />
-                </div>
-
-                <div>
-                  <Label>Comments</Label>
-                  <textarea
-                    value={comments}
-                    onChange={(e) => setComments(e.target.value)}
-                    placeholder="Optional comments"
-                    className="w-full max-w-full h-24 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <input
+                    type="date"
+                    value={toInputValue(nextValidationDate)}
+                    onChange={(e) =>
+                      setNextValidationDate(
+                        fromInputToMMDDYYYY(e.target.value),
+                      )
+                    }
+                    className="w-full border rounded p-2"
                   />
                 </div>
 
-                <Button className="w-full bg-[#2C2C2C] hover:bg-black text-white">
-                  Save Report
+                {/* REMARKS */}
+                <div>
+                  <Label>Remarks</Label>
+                  <Select
+                    value={selectedReport?.Remarks}
+                    onValueChange={(v: RemarksValue) =>
+                      setSelectedReport((p) =>
+                        p ? { ...p, Remarks: v } : p,
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select remarks" />
+                    </SelectTrigger>
+
+                    <SelectContent className="bg-white">
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Done">Done</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* PERSON */}
+                <div>
+                  <Label>Person</Label>
+                  <Input
+                    value={selectedReport?.Person || ""}
+                    onChange={(e) =>
+                      setSelectedReport((p) =>
+                        p ? { ...p, Person: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+
+                {/* COMMENTS */}
+                <div>
+                  <Label>Comments</Label>
+                  <textarea
+                    maxLength={255}
+                    value={comments}
+                    onChange={(e) => setComments(e.target.value)}
+                    className="w-full border rounded p-2 h-16"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-black hover:bg-[#2C2C2C] text-white"
+                >
+                  {loading ? "Saving..." : "Save"}
                 </Button>
+
                 <Button
                   type="button"
-                  className="w-full"
+                  className="w-full bg-white-200 hover:bg-white"
                   onClick={() => setIsEditOpen(false)}
                 >
                   Cancel
@@ -360,69 +654,73 @@ export default function Reports() {
       </div>
 
       {/* TABLE */}
-      <Table className="border rounded-lg">
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id}>
-              {group.headers.map((header) => (
-                <TableHead key={header.id} className="bg-[#2C2C2C] text-white">
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext(),
-                  )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
+      <div className="w-full overflow-x-auto">
+        <Table className="w-full table-fixed border rounded-lg">
+          <TableHeader>
+            {table.getHeaderGroups().map((g) => (
+              <TableRow key={g.id}>
+                {g.headers.map((h) => (
+                  <TableHead key={h.id} className="bg-[#222] text-white">
+                    {flexRender(h.column.columnDef.header, h.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
 
-        <TableBody>
-          {table.getRowModel().rows.map((row, i) => (
-            <TableRow key={row.id} className={i % 2 ? "bg-gray-100" : ""}>
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="text-center py-4">
+                  No records found.
                 </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => {
+                    const colKey = (cell.column.columnDef as any).accessorKey;
+                    const isComments = colKey === "Comments";
+                    const isStatus = cell.column.columnDef.id === "status";
+
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          isComments || isStatus
+                            ? "whitespace-normal break-words align-top"
+                            : "whitespace-nowrap"
+                        }
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* PAGINATION */}
-      <div className="mt-4">
+      <div className="mt-4 ">
         <Pagination className="flex justify-end">
           <PaginationContent>
             <PaginationItem>
-              <PaginationPrevious
-                onClick={(e) => {
-                  e.preventDefault();
-                  table.previousPage();
-                }}
-              />
+              <PaginationPrevious onClick={() => table.previousPage()} />
             </PaginationItem>
 
             {Array.from({ length: table.getPageCount() }, (_, i) => (
               <PaginationItem key={i}>
-                <PaginationLink
-                  isActive={i === pageIndex}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    table.setPageIndex(i);
-                  }}
-                >
+                <PaginationLink onClick={() => table.setPageIndex(i)}>
                   {i + 1}
                 </PaginationLink>
               </PaginationItem>
             ))}
 
             <PaginationItem>
-              <PaginationNext
-                onClick={(e) => {
-                  e.preventDefault();
-                  table.nextPage();
-                }}
-              />
+              <PaginationNext onClick={() => table.nextPage()} />
             </PaginationItem>
           </PaginationContent>
         </Pagination>
