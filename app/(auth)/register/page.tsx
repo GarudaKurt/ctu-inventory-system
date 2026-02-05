@@ -31,7 +31,7 @@ const SignUp = () => {
   const [loading, setLoading] = useState(false);
 
   const route = useRouter();
-  const handleRegister = async (e) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
@@ -60,7 +60,7 @@ const SignUp = () => {
       console.log("User registered:", data.user);
       setLoading(false);
       alert("Registration successful!");
-      route.push('/reports')
+      route.push("/reports");
     } catch (err) {
       console.error(err);
       setError("Network error");
@@ -102,7 +102,7 @@ const SignUp = () => {
             <div className="grid gap-2">
               <Label htmlFor="role">Role</Label>
               <Select value={role} onValueChange={(value) => setRole(value)}>
-                <SelectTrigger  className="bg-white border-2 border-gray-300 rounded-xl">
+                <SelectTrigger className="bg-white border-2 border-gray-300 rounded-xl">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
