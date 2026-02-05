@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import Router, { useRouter } from "next/router";
+import { useRouter } from "next/router";
 
 const SignUp = () => {
   const [email, setEmail] = useState("");

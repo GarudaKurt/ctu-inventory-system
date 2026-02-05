@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation"; // ✅ use this in app directory
+import { useRouter } from "next/navigation"; 
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -20,39 +20,39 @@ const SignIn = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const router = useRouter(); // ✅ useRouter from next/navigation
+  const router = useRouter(); 
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
 
-    try {
-      const res = await fetch("/api/users/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  try {
+    const res = await fetch("/api/users/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        setError(data.error || "Something went wrong");
-        setLoading(false);
-        return;
-      }
-
-      console.log("Logged in user:", data.user);
+    if (!res.ok) {
+      setError(data.error || "Something went wrong");
       setLoading(false);
-
-      // ✅ Correct push in app directory
-      router.push("/reports");
-    } catch (err) {
-      console.error(err);
-      setError("Network error");
-      setLoading(false);
+      return;
     }
-  };
+
+    console.log("Logged in user:", data.user);
+    setLoading(false);
+
+    router.push("/reports");
+  } catch (err) {
+    console.error(err);
+    setError("Network error");
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="bg-[#f2f2f2] flex justify-center items-center h-screen">
