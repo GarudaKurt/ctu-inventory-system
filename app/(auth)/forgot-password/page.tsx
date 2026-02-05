@@ -21,35 +21,36 @@ const ForgotPassword = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setMessage("");
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+  setMessage("");
 
-    try {
-      const res = await fetch("/api/users/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, newPassword }),
-      });
+  try {
+    const res = await fetch("/api/users/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, newPassword }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        setError(data.error || "Something went wrong");
-        setLoading(false);
-        return;
-      }
-
-      setMessage(data.message || "Password updated successfully");
+    if (!res.ok) {
+      setError(data.error || "Something went wrong");
       setLoading(false);
-    } catch (err) {
-      console.error(err);
-      setError("Network error");
-      setLoading(false);
+      return;
     }
-  };
+
+    setMessage(data.message || "Password updated successfully");
+    setLoading(false);
+  } catch (err) {
+    console.error(err);
+    setError("Network error");
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="relative min-h-screen bg-[#F2F2F2] flex items-center justify-center p-6">
