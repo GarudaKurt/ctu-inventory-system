@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   SidebarProvider,
@@ -12,17 +12,24 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-} from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { Package, LogOut, User, Users, FolderArchiveIcon, FolderCheck } from "lucide-react"
-import Link from "next/link"
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import {
+  Package,
+  LogOut,
+  User,
+  Users,
+  FolderArchiveIcon,
+  FolderCheck,
+} from "lucide-react";
+import Link from "next/link";
 
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const currentUser = "aldren@example.com"
+  const currentUser = "aldren@example.com";
 
   return (
     <SidebarProvider>
@@ -31,7 +38,7 @@ export default function DashboardLayout({
         <Sidebar className="bg-[#2C2C2C] text-white">
           <SidebarHeader className="flex flex-col gap-2 px-4 py-3 border-b border-gray-700">
             <div className="flex items-center gap-2">
-              <img src="/logo.svg" className="h-8 w-8" />
+              <img src="/img/bg.png" className="h-8 w-8" />
               <span className="text-xl font-bold">Duckil</span>
             </div>
 
@@ -53,41 +60,22 @@ export default function DashboardLayout({
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                  <Link href="/validation">
-                    <SidebarMenuButton className="hover:bg-blue-800 rounded-md text-white">
-                      <FolderArchiveIcon className="mr-2 h-4 w-4" />
-                      Validation
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                  <Link href="/validation">
-                    <SidebarMenuButton className="hover:bg-blue-800 rounded-md text-white">
-                      <Users className="mr-2 h-4 w-4" />
-                      Users
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>
 
           <SidebarFooter className="border-t border-gray-700 p-4">
-            <Button variant="destructive" className="w-full">
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </Button>
+            <Link href={"/"}>
+              <Button variant="destructive" className="w-full">
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+            </Link>
           </SidebarFooter>
         </Sidebar>
 
-        {/* 🔥 THIS IS THE KEY PART */}
-        <main className="flex-1 bg-gray-100 p-6 w-full">
-          {children}
-        </main>
+        <main className="flex-1 bg-gray-100 p-6 w-full">{children}</main>
       </div>
     </SidebarProvider>
-  )
+  );
 }

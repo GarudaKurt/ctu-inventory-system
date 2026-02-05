@@ -50,7 +50,6 @@ import { Label } from "@/components/ui/label";
 
 import { Pencil, Trash2 } from "lucide-react";
 
-/* ================= TYPES ================= */
 type RemarksValue = "Done" | "Pending" | "";
 type StatusValue = "Pending" | "Due Date" | "Finish";
 
@@ -88,7 +87,7 @@ const toInputValue = (mmddyyyy?: string): string => {
   const d = parseMMDDYYYY(mmddyyyy);
   if (!d) return "";
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
+    d.getDate(),
   ).padStart(2, "0")}`;
 };
 
@@ -107,17 +106,22 @@ const normalizeToMMDDYYYY = (s: any): string => {
   return "";
 };
 
-/* ================= STATUS HELPERS (DYNAMIC) ================= */
-/** Days until given date relative to `now` */
 const daysUntil = (mmddyyyy: string | undefined, now: Date): number => {
   const d = parseMMDDYYYY(mmddyyyy);
   if (!d) return Number.POSITIVE_INFINITY;
-  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startDue = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const startNow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const startDue = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+  ).getTime();
   return Math.ceil((startDue - startNow) / (1000 * 60 * 60 * 24));
 };
 
-/** Derive current status based on Remarks + NextValidationDate against `now` */
 const deriveStatus = (r: Report, now: Date): StatusValue => {
   if (r.Remarks === "Done") return "Finish";
   const left = daysUntil(r.NextValidationDate, now);
@@ -125,7 +129,6 @@ const deriveStatus = (r: Report, now: Date): StatusValue => {
   return "Pending";
 };
 
-/* ================= COMMENT CELL ================= */
 function CommentCell({ value }: { value?: string }) {
   const [expanded, setExpanded] = useState(false);
   const text = value ?? "";
@@ -147,6 +150,21 @@ function CommentCell({ value }: { value?: string }) {
   );
 }
 
+async function safeJson(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  const text = await res.text();
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      `Non-JSON response (${res.status} ${res.statusText}) from ${res.url}:\n${text.slice(0, 200)}...`,
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON from ${res.url}: ${text.slice(0, 200)}...`);
+  }
+}
+
 /* ================= MAIN COMPONENT ================= */
 export default function Reports() {
   const [reports, setReports] = useState<Report[]>([]);
@@ -156,7 +174,6 @@ export default function Reports() {
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | StatusValue>("all");
 
-  /* Person search (free text) */
   const [personQuery, setPersonQuery] = useState<string>("");
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -167,14 +184,11 @@ export default function Reports() {
   const [comments, setComments] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /* NEW: dynamic 'now' that updates periodically so status auto-refreshes */
   const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
-    // Tick every 60 seconds (tune as needed). Keeps statuses current.
-    const id = setInterval(() => setNow(new Date()), 3);
+    const id = setInterval(() => setNow(new Date()), 500_000);
 
-    // OPTIONAL: also re-tick when tab becomes visible (if user returns after hours)
     const onVisible = () => setNow(new Date());
     document.addEventListener("visibilitychange", onVisible);
 
@@ -184,8 +198,6 @@ export default function Reports() {
     };
   }, []);
 
-
-  /* ================= FETCH REPORTS ================= */
   const fetchReports = async () => {
     try {
       const res = await fetch("/api/fetch-reports/", { cache: "no-store" });
@@ -209,69 +221,57 @@ export default function Reports() {
     }
   };
 
-  /* ================= EDIT ================= */
-  const handleEditImmediate = async (r: Report) => {
-  setLoading(true);
+  const handleDelete = async (id: number) => {
+    if (!id) return;
+    const ok = confirm("Are you sure you want to delete this record?");
+    if (!ok) return;
 
-  try {
-    const payload = {
-      ID: r.ID,
-      Items: r.Items,
-      Program: r.Program,
-      PartName: r.PartName,
-      ValidationDate: r.ValidationDate || null,
-      NextValidationDate: r.NextValidationDate || null,
-      Remarks: r.Remarks,
-      Comments: r.Comments?.slice(0, 255) || "",
-      Person: r.Person,
-    };
+    try {
+      const res = await fetch(`/api/delete-record?id=${id}`, {
+        method: "DELETE",
+      });
 
-    const res = await fetch("/api/update-record", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+      await fetchReports();
+    } catch (err) {
+      alert("Delete error: " + (err as any).message);
+      console.error(err);
+    }
+  };
 
-    await fetchReports(); // refresh table
-  } catch (err) {
-    alert("Update error: " + (err as any).message);
-    console.error(err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  /* ================= SAVE ================= */
   const handleSave = async (e: any) => {
     e.preventDefault();
     if (!selectedReport) return;
 
     setLoading(true);
     try {
+      const isEdit = selectedReport.ID > 0;
+
       const payload = {
-        ID: selectedReport.ID > 0 ? selectedReport.ID : undefined,
+        ID: isEdit ? selectedReport.ID : undefined,
         Items: selectedReport.Items,
         Program: selectedReport.Program,
         PartName: selectedReport.PartName,
-        ValidationDate: validationDate,
-        NextValidationDate: nextValidationDate,
+        ValidationDate: validationDate || null,
+        NextValidationDate: nextValidationDate || null,
         Remarks: selectedReport.Remarks,
-        Comments: comments.slice(0, 255),
+        Comments: (comments || "").slice(0, 255),
         Person: selectedReport.Person,
       };
 
-      const res = await fetch("/api/add-inventory", {
-        method: "POST",
+      const endpoint = isEdit ? "/api/update-records" : "/api/add-inventory";
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Request failed");
 
       await fetchReports();
       setIsEditOpen(false);
@@ -287,7 +287,6 @@ export default function Reports() {
     fetchReports();
   }, []);
 
-  /* ================= FILTER (YEAR + STATUS + PERSON QUERY) ================= */
   const filtered = useMemo(() => {
     let data =
       yearFilter === "all"
@@ -304,7 +303,9 @@ export default function Reports() {
 
     if (personQuery.trim() !== "") {
       const needle = personQuery.trim().toLowerCase();
-      data = data.filter((r) => (r.Person ?? "").toLowerCase().includes(needle));
+      data = data.filter((r) =>
+        (r.Person ?? "").toLowerCase().includes(needle),
+      );
     }
 
     return data;
@@ -317,7 +318,7 @@ export default function Reports() {
     { accessorKey: "PartName", header: "Part Name" },
     { accessorKey: "ValidationDate", header: "Validation Date" },
     { accessorKey: "NextValidationDate", header: "Next Validation Date" },
-  
+
     {
       id: "status",
       header: "Remarks Status",
@@ -327,8 +328,8 @@ export default function Reports() {
           status === "Finish"
             ? "bg-green-100 text-green-700"
             : status === "Due Date"
-            ? "bg-red-100 text-red-700"
-            : "bg-yellow-100 text-yellow-700";
+              ? "bg-red-100 text-red-700"
+              : "bg-yellow-100 text-yellow-700";
 
         return (
           <span
@@ -343,10 +344,10 @@ export default function Reports() {
     },
 
     { accessorKey: "Remarks", header: "Remarks" },
-    { 
-      accessorKey: "Person", 
+    {
+      accessorKey: "Person",
       header: "Person",
-      cell: ({ row }) => row.original.Person || "-" // fallback if null/empty
+      cell: ({ row }) => row.original.Person || "-",
     },
     {
       accessorKey: "Comments",
@@ -359,22 +360,26 @@ export default function Reports() {
       header: () => <div className="text-center">Actions</div>,
       cell: ({ row }) => (
         <div className="flex gap-1 justify-center">
-      <Button
-  size="icon"
-  variant="ghost"
-  onClick={() => {
-    setSelectedReport(row.original);
-    setValidationDate(row.original.ValidationDate);
-    setNextValidationDate(row.original.NextValidationDate);
-    setComments(row.original.Comments || "");
-    setIsEditOpen(true);
-  }}
->
-  <Pencil className="h-4 w-4 text-blue-600" />
-</Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => {
+              setSelectedReport(row.original);
+              setValidationDate(row.original.ValidationDate);
+              setNextValidationDate(row.original.NextValidationDate);
+              setComments(row.original.Comments || "");
+              setIsEditOpen(true);
+            }}
+          >
+            <Pencil className="h-4 w-4 text-blue-600" />
+          </Button>
 
-
-          <Button size="icon" variant="ghost">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => handleDelete(row.original.ID)}
+            disabled={loading}
+          >
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
         </div>
@@ -398,15 +403,12 @@ export default function Reports() {
     getPaginationRowModel: getPaginationRowModel(),
   });
 
-  /* ================= RENDER ================= */
   return (
     <div className="w-full">
-      {/* HEADER */}
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-semibold">Inventory</h1>
 
         <div className="flex gap-4 flex-wrap items-center">
-          {/* YEAR FILTER */}
           <Select
             value={yearFilter}
             onValueChange={(v) => {
@@ -578,9 +580,7 @@ export default function Reports() {
                     type="date"
                     value={toInputValue(nextValidationDate)}
                     onChange={(e) =>
-                      setNextValidationDate(
-                        fromInputToMMDDYYYY(e.target.value),
-                      )
+                      setNextValidationDate(fromInputToMMDDYYYY(e.target.value))
                     }
                     className="w-full border rounded p-2"
                   />
@@ -592,9 +592,7 @@ export default function Reports() {
                   <Select
                     value={selectedReport?.Remarks}
                     onValueChange={(v: RemarksValue) =>
-                      setSelectedReport((p) =>
-                        p ? { ...p, Remarks: v } : p,
-                      )
+                      setSelectedReport((p) => (p ? { ...p, Remarks: v } : p))
                     }
                   >
                     <SelectTrigger className="w-full">
@@ -671,7 +669,10 @@ export default function Reports() {
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-4">
+                <TableCell
+                  colSpan={columns.length}
+                  className="text-center py-4"
+                >
                   No records found.
                 </TableCell>
               </TableRow>
@@ -692,7 +693,10 @@ export default function Reports() {
                             : "whitespace-nowrap"
                         }
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
                       </TableCell>
                     );
                   })}
@@ -703,7 +707,6 @@ export default function Reports() {
         </Table>
       </div>
 
-      {/* PAGINATION */}
       <div className="mt-4 ">
         <Pagination className="flex justify-end">
           <PaginationContent>

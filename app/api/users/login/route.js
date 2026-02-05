@@ -13,7 +13,6 @@ export async function POST(request) {
       );
     }
 
-    // Exact match using your DB column names
     const user = db
       .prepare("SELECT * FROM Users WHERE Email = ?")
       .get(email);
@@ -27,7 +26,6 @@ export async function POST(request) {
       });
     }
 
-    // Match column names exactly
     if (user.Password !== password) {
       console.log("Password mismatch for", user.Email);
       return new Response(JSON.stringify({ error: "Invalid password" }), {
