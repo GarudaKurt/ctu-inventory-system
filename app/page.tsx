@@ -13,12 +13,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation"; 
+import Link from "next/link";
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
 
   const router = useRouter(); 
 
@@ -65,7 +67,10 @@ const SignIn = () => {
                 Enter your email below to login to your account
               </CardDescription>
             </div>
+            <Link href={"/register"}>
             <Button variant="link">Sign Up</Button>
+            </Link>
+
           </div>
         </CardHeader>
 
