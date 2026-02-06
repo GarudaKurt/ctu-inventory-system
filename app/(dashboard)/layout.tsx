@@ -29,7 +29,6 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const currentUser = "aldren@example.com";
 
   return (
     <SidebarProvider>
@@ -40,11 +39,6 @@ export default function DashboardLayout({
             <div className="flex items-center gap-2">
               <img src="/img/bg.png" className="h-8 w-8" />
               <span className="text-xl font-bold">Duckil</span>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-gray-300">
-              <User className="h-4 w-4" />
-              {currentUser}
             </div>
           </SidebarHeader>
 
