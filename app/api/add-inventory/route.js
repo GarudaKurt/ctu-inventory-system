@@ -3,15 +3,16 @@ import { db } from "@/lib/db";
 // POST: create a new record
 export async function POST(request) {
   try {
-    const { Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person } = await request.json();
+    const {SampleNo, Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person } = await request.json();
 
     const data = db.prepare(
       `INSERT INTO Records
-      (Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      (SampleNo, Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     const info = data.run(
+      SampleNo,
       Items,
       Program,
       PartName,

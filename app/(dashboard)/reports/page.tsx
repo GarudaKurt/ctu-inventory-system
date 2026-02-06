@@ -55,6 +55,7 @@ type StatusValue = "Pending" | "Due Date" | "Finish";
 
 type Report = {
   ID: number;
+  SampleNo: string;
   Items: string;
   Program: string;
   PartName: string;
@@ -205,6 +206,7 @@ export default function Reports() {
 
       const normalized: Report[] = (data.records || []).map((r: any) => ({
         ID: Number(r.ID),
+        SampleNo: r.SampleNo ?? "",
         Items: r.Items ?? "",
         Program: r.Program ?? "",
         PartName: r.PartName ?? "",
@@ -251,6 +253,7 @@ export default function Reports() {
 
       const payload = {
         ID: isEdit ? selectedReport.ID : undefined,
+        SampleNo: selectedReport.SampleNo,
         Items: selectedReport.Items,
         Program: selectedReport.Program,
         PartName: selectedReport.PartName,
@@ -313,6 +316,7 @@ export default function Reports() {
 
   /* ================= TABLE COLUMNS ================= */
   const columns: ColumnDef<Report>[] = [
+    { accessorKey: "SampleNo", header: "SampleNo" },
     { accessorKey: "Items", header: "Items" },
     { accessorKey: "Program", header: "Program" },
     { accessorKey: "PartName", header: "Part Name" },
@@ -335,9 +339,7 @@ export default function Reports() {
           <span
             className={`px-3 py-1 rounded-full text-xs font-semibold block text-center whitespace-normal break-words max-w-[150px] ${color}`}
           >
-            {status === "Due Date"
-              ? "Need to validate before due date"
-              : status}
+            {status === "Due Date" ? "Due Date" : status}
           </span>
         );
       },
@@ -494,12 +496,13 @@ export default function Reports() {
                 onClick={() => {
                   setSelectedReport({
                     ID: 0,
+                    SampleNo: "",
                     Items: "",
                     Program: "",
                     PartName: "",
                     ValidationDate: "",
                     NextValidationDate: "",
-                    Remarks: "Done",
+                    Remarks: "Pending",
                     Comments: "",
                     Person: "",
                   });
@@ -516,7 +519,7 @@ export default function Reports() {
               </Button>
             </SheetTrigger>
 
-            <SheetContent className="bg-white">
+            <SheetContent className="bg-white max-h-[100vh] overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>
                   {selectedReport?.ID ? "Edit" : "Add"} Report
@@ -526,6 +529,18 @@ export default function Reports() {
 
               {/* FORM */}
               <form className="mt-4 space-y-4" onSubmit={handleSave}>
+                <div>
+                  <Label>Master/SampleNo.</Label>
+                  <Input
+                    value={selectedReport?.SampleNo || ""}
+                    onChange={(e) =>
+                      setSelectedReport((p) =>
+                        p ? { ...p, SampleNo: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+
                 <div>
                   <Label>Items</Label>
                   <Input
