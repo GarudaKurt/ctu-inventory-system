@@ -166,7 +166,6 @@ async function safeJson(res: Response) {
   }
 }
 
-/* ================= MAIN COMPONENT ================= */
 export default function Reports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -184,10 +183,12 @@ export default function Reports() {
   const [nextValidationDate, setNextValidationDate] = useState("");
   const [comments, setComments] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isEmailSetupOpen, setIsEmailSetupOpen] = useState(false);
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
 
   const emailSentToday = useRef(false);
   const hasFetchedReports = useRef(false);
-
 
   const [now, setNow] = useState<Date>(new Date());
 
@@ -202,6 +203,35 @@ export default function Reports() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notificationEmail) return alert("Please enter an email");
+
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(notificationEmail))
+      return alert("Invalid email format");
+
+    setEmailLoading(true);
+    try {
+      const res = await fetch("/api/setup-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: notificationEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+
+      alert("Email notification setup successfully!");
+      setIsEmailSetupOpen(false);
+    } catch (err) {
+      alert("Error: " + (err as any).message);
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   const sendDueDateEmailsOnce = async (reports: Report[]) => {
     if (emailSentToday.current) return;
@@ -310,11 +340,28 @@ export default function Reports() {
   };
 
   useEffect(() => {
-  if (!hasFetchedReports.current) {
-    fetchReports();
-    hasFetchedReports.current = true;
-  }
-}, []);
+    if (!hasFetchedReports.current) {
+      fetchReports();
+      hasFetchedReports.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isEmailSetupOpen) {
+      // Fetch current saved email
+      (async () => {
+        try {
+          const res = await fetch("/api/setup-email");
+          if (!res.ok) throw new Error("Failed to fetch current email");
+          const data = await res.json();
+          setNotificationEmail(data.email || "");
+        } catch (err) {
+          console.error("Error fetching email:", err);
+          setNotificationEmail("");
+        }
+      })();
+    }
+  }, [isEmailSetupOpen]);
 
   const filtered = useMemo(() => {
     let data =
@@ -509,6 +556,54 @@ export default function Reports() {
             </SelectContent>
           </Select>
 
+          {/* EMAIL SETUP SHEET */}
+          <Sheet
+            open={isEmailSetupOpen}
+            onOpenChange={(open) => setIsEmailSetupOpen(open)}
+          >
+            <SheetTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Setup Email Notifications
+              </Button>
+            </SheetTrigger>
+
+            <SheetContent className="bg-white max-h-[100vh] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Setup your email notifications</SheetTitle>
+                <SheetDescription>To send reports via email</SheetDescription>
+              </SheetHeader>
+
+              <form className="mt-4 space-y-4" onSubmit={handleEmailSubmit}>
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={notificationEmail}
+                    onChange={(e) => setNotificationEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={emailLoading}
+                  className="w-full bg-black hover:bg-gray-800 text-white"
+                >
+                  {emailLoading ? "Saving..." : "Save"}
+                </Button>
+
+                <Button
+                  type="button"
+                  className="w-full bg-gray-200 hover:bg-gray-300 text-black"
+                  onClick={() => setIsEmailSetupOpen(false)}
+                >
+                  Cancel
+                </Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+
           {/* ADD / EDIT SHEET */}
           <Sheet
             open={isEditOpen}
@@ -694,7 +789,7 @@ export default function Reports() {
 
       {/* TABLE */}
       <div className="w-full overflow-x-auto">
-        <Table className="w-full table-fixed border rounded-lg">
+        <Table className="w-full bg-white table-fixed border rounded-lg">
           <TableHeader>
             {table.getHeaderGroups().map((g) => (
               <TableRow key={g.id}>

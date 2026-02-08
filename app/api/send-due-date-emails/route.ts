@@ -1,15 +1,15 @@
 import nodemailer from "nodemailer";
 import { NextRequest, NextResponse } from "next/server";
 
-// In-memory tracker for last email sent per report (keyed by report ID)
-// Format: { reportId: 'YYYY-MM-DD' }
+// In-memory tracker for last email sent per report
 const lastSentDate: Record<number, string> = {};
+
+// Store notification email in memory (should match your modal setup)
+let notificationEmail: string | null = "aldren.l@pandolink.com"; // default fallback
 
 export async function POST(req: NextRequest) {
   try {
-    // Expecting { reports: Report[] } in request body
     const { reports } = await req.json();
-
     if (!reports || !Array.isArray(reports)) {
       return NextResponse.json(
         { error: "Missing or invalid 'reports' array" },
@@ -32,13 +32,12 @@ export async function POST(req: NextRequest) {
     const sentReports: number[] = [];
 
     for (const r of reports) {
-      // Only send if report has necessary info and not already sent today
       if (r.ID && r.Person && r.NextValidationDate) {
         if (lastSentDate[r.ID] === today) continue; // already sent today
 
         await transporter.sendMail({
           from: `"Inventory System" <${process.env.EMAIL_USER}>`,
-          to: "aldren.l@pandolink.com", // You can replace with r.Person email if available
+          to: notificationEmail || "aldren.l@pandolink.com", // use modal email or fallback
           subject: `Report Due Date Reminder ${r.SampleNo}`,
           text: `Hi ${r.Person},\n\nThe report with Sample No ${r.SampleNo} is due on ${r.NextValidationDate}.`,
           html: `<p>Hi <strong>${r.Person}</strong>,</p>
