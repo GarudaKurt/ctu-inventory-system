@@ -15,11 +15,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
-  Package,
+  Mail,
   LogOut,
-  User,
-  Users,
-  FolderArchiveIcon,
   FolderCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -51,6 +48,14 @@ export default function DashboardLayout({
                     <SidebarMenuButton className="hover:bg-blue-800 rounded-md text-white">
                       <FolderCheck className="mr-2 h-4 w-4" />
                       Inventory
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <Link href="/reports">
+                    <SidebarMenuButton className="hover:bg-blue-800 rounded-md text-white">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Email setup
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>

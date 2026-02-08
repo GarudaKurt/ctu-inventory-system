@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   ColumnDef,
   flexRender,
@@ -185,6 +185,10 @@ export default function Reports() {
   const [comments, setComments] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const emailSentToday = useRef(false);
+  const hasFetchedReports = useRef(false);
+
+
   const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
@@ -198,6 +202,22 @@ export default function Reports() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
+
+  const sendDueDateEmailsOnce = async (reports: Report[]) => {
+    if (emailSentToday.current) return;
+    const dueReports = reports.filter(
+      (r) => deriveStatus(r, new Date()) === "Due Date",
+    );
+    if (dueReports.length === 0) return;
+
+    await fetch("/api/send-due-date-emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reports: dueReports }),
+    });
+
+    emailSentToday.current = true;
+  };
 
   const fetchReports = async () => {
     try {
@@ -218,6 +238,9 @@ export default function Reports() {
       }));
 
       setReports(normalized);
+
+      // send due date emails once
+      sendDueDateEmailsOnce(normalized);
     } catch (err) {
       console.error("FETCH ERROR:", err);
     }
@@ -287,8 +310,11 @@ export default function Reports() {
   };
 
   useEffect(() => {
+  if (!hasFetchedReports.current) {
     fetchReports();
-  }, []);
+    hasFetchedReports.current = true;
+  }
+}, []);
 
   const filtered = useMemo(() => {
     let data =
