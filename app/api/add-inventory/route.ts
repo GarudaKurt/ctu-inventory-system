@@ -1,34 +1,59 @@
 import { db } from "@/lib/db";
 
-// POST: create a new record
+// create new records
 export async function POST(request) {
   try {
-    const {SampleNo, Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person, IsEmailSend, EmailSetup } = await request.json();
+    const {
+      SampleNo,
+      Items,
+      Program,
+      PartName,
+      ValidationDate,
+      NextValidationDate,
+      Remarks,
+      Comments,
+      Person,
+      IsEmailSend,
+      EmailSetup,
+    } = await request.json();
 
-    const data = db.prepare(
+    let emailToUse = EmailSetup || null;
+
+    // If EmailSetup is not provided, check existing records
+    if (!emailToUse) {
+      const row = db
+        .prepare("SELECT EmailSetup FROM Records WHERE EmailSetup IS NOT NULL LIMIT 1")
+        .get();
+      if (row && row.EmailSetup) {
+        emailToUse = row.EmailSetup;
+      }
+    }
+
+    const stmt = db.prepare(
       `INSERT INTO Records
       (SampleNo, Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person, IsEmailSend, EmailSetup)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
-    const info = data.run(
-      SampleNo,
-      Items,
-      Program,
-      PartName,
+    const info = stmt.run(
+      SampleNo || null,
+      Items || null,
+      Program || null,
+      PartName || null,
       ValidationDate || null,
       NextValidationDate || null,
       Remarks || null,
       Comments || null,
       Person || null,
-      IsEmailSend || null,
-      EmailSetup || null
+      IsEmailSend || 0,
+      emailToUse
     );
 
     return new Response(
       JSON.stringify({
         message: "Record created successfully",
         recordId: info.lastInsertRowid,
+        usedEmail: emailToUse, // optional: show which email was used
       }),
       { status: 201, headers: { "Content-Type": "application/json" } }
     );
