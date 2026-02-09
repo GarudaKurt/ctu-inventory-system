@@ -1,38 +1,34 @@
-    // File: /app/api/setup-email/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
-// For now, store the notification email in memory
-// You can replace with DB later
-let notificationEmail: string | null = null;
-
-export async function POST(req: NextRequest) {
+export async function GET() {
   try {
-    const { email } = await req.json();
-
-    if (!email || typeof email !== "string") {
-      return NextResponse.json(
-        { error: "Missing or invalid 'email' field" },
-        { status: 400 }
-      );
-    }
-
-    notificationEmail = email;
-
-    console.log("Notification email set to:", notificationEmail);
-
-    return NextResponse.json({
-      message: `Email notifications will be sent to ${notificationEmail}`,
-    });
+    const row = db.prepare("SELECT EmailSetup FROM Records LIMIT 1").get();
+    const email = row?.EmailSetup || null;
+    return NextResponse.json({ email });
   } catch (err: any) {
-    console.error("Setup email error:", err);
-    return NextResponse.json(
-      { error: err.message || "Setup email failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// Optional GET to check current setup email
-export async function GET() {
-  return NextResponse.json({ email: notificationEmail || null });
+export async function PUT(req: NextRequest) {
+  try {
+    const { EmailSetup } = await req.json();
+
+    if (!EmailSetup || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(EmailSetup)) {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+    }
+
+    // Update ALL rows
+    const stmt = db.prepare("UPDATE Records SET EmailSetup = ?");
+    const info = stmt.run(EmailSetup);
+
+    return NextResponse.json({
+      email: EmailSetup,
+      updatedRows: info.changes, // <-- number of rows affected
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
 }

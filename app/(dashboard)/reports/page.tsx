@@ -64,6 +64,7 @@ type Report = {
   Remarks: RemarksValue;
   Person: string;
   Comments?: string;
+  IsEmailSend?: number; // 0 or 1
 };
 
 /* ================= DATE HELPERS ================= */
@@ -156,7 +157,10 @@ async function safeJson(res: Response) {
   const text = await res.text();
   if (!contentType.includes("application/json")) {
     throw new Error(
-      `Non-JSON response (${res.status} ${res.statusText}) from ${res.url}:\n${text.slice(0, 200)}...`,
+      `Non-JSON response (${res.status} ${res.statusText}) from ${res.url}:\n${text.slice(
+        0,
+        200,
+      )}...`,
     );
   }
   try {
@@ -173,7 +177,6 @@ export default function Reports() {
 
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | StatusValue>("all");
-
   const [personQuery, setPersonQuery] = useState<string>("");
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -183,75 +186,23 @@ export default function Reports() {
   const [nextValidationDate, setNextValidationDate] = useState("");
   const [comments, setComments] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [isEmailSetupOpen, setIsEmailSetupOpen] = useState(false);
   const [notificationEmail, setNotificationEmail] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
 
-  const emailSentToday = useRef(false);
-  const hasFetchedReports = useRef(false);
-
-  const [now, setNow] = useState<Date>(new Date());
-
+  const now = useRef(new Date());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 500_000);
-
-    const onVisible = () => setNow(new Date());
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    const id = setInterval(() => (now.current = new Date()), 500_000);
+    return () => clearInterval(id);
   }, []);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!notificationEmail) return alert("Please enter an email");
-
-    // Basic email format check
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(notificationEmail))
-      return alert("Invalid email format");
-
-    setEmailLoading(true);
-    try {
-      const res = await fetch("/api/setup-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: notificationEmail }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Request failed");
-
-      alert("Email notification setup successfully!");
-      setIsEmailSetupOpen(false);
-    } catch (err) {
-      alert("Error: " + (err as any).message);
-    } finally {
-      setEmailLoading(false);
-    }
-  };
-
-  const sendDueDateEmailsOnce = async (reports: Report[]) => {
-    if (emailSentToday.current) return;
-    const dueReports = reports.filter(
-      (r) => deriveStatus(r, new Date()) === "Due Date",
-    );
-    if (dueReports.length === 0) return;
-
-    await fetch("/api/send-due-date-emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reports: dueReports }),
-    });
-
-    emailSentToday.current = true;
-  };
-
+  /* ==================== FETCH REPORTS ==================== */
   const fetchReports = async () => {
     try {
-      const res = await fetch("/api/fetch-reports/", { cache: "no-store" });
+      const res = await fetch("/api/fetch-reports", { cache: "no-store" });
+      if (!res.ok)
+        throw new Error(`Failed to fetch reports: ${res.statusText}`);
       const data = await res.json();
 
       const normalized: Report[] = (data.records || []).map((r: any) => ({
@@ -265,104 +216,146 @@ export default function Reports() {
         Remarks: ["Done", "Pending"].includes(r.Remarks) ? r.Remarks : "",
         Comments: r.Comments ?? "",
         Person: r.Person ?? "",
+        IsEmailSend: Number(r.IsEmailSend) || 0,
       }));
 
       setReports(normalized);
 
-      // send due date emails once
-      sendDueDateEmailsOnce(normalized);
+      // Send due date emails once after fetching
+      await sendDueDateEmailsOnce(normalized);
     } catch (err) {
-      console.error("FETCH ERROR:", err);
+      console.error("[ERROR] fetchReports failed:", err);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!id) return;
-    const ok = confirm("Are you sure you want to delete this record?");
-    if (!ok) return;
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  /* ==================== SEND DUE DATE EMAILS ONCE ==================== */
+  const sendDueDateEmailsOnce = async (reports: Report[]) => {
+    const dueReports = reports.filter(
+      (r) => deriveStatus(r, now.current) === "Due Date" && r.IsEmailSend !== 1,
+    );
+
+    if (dueReports.length === 0) return;
 
     try {
-      const res = await fetch(`/api/delete-record?id=${id}`, {
-        method: "DELETE",
+      const res = await fetch("/api/send-due-date-emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reports: dueReports }),
       });
 
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send emails");
 
-      await fetchReports();
+      // Update local state to mark as emailed
+      setReports((prev) =>
+        prev.map((r) =>
+          dueReports.find((d) => d.ID === r.ID) ? { ...r, IsEmailSend: 1 } : r,
+        ),
+      );
+
+      await fetchReports(); // refresh from backend
     } catch (err) {
-      alert("Delete error: " + (err as any).message);
-      console.error(err);
+      console.error("[ERROR] sendDueDateEmailsOnce failed:", err);
     }
   };
 
-  const handleSave = async (e: any) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedReport) return;
 
-    setLoading(true);
     try {
-      const isEdit = selectedReport.ID > 0;
+      setLoading(true);
 
       const payload = {
-        ID: isEdit ? selectedReport.ID : undefined,
-        SampleNo: selectedReport.SampleNo,
-        Items: selectedReport.Items,
-        Program: selectedReport.Program,
-        PartName: selectedReport.PartName,
-        ValidationDate: validationDate || null,
-        NextValidationDate: nextValidationDate || null,
-        Remarks: selectedReport.Remarks,
-        Comments: (comments || "").slice(0, 255),
-        Person: selectedReport.Person,
+        ...selectedReport,
+        ValidationDate: validationDate,
+        NextValidationDate: nextValidationDate,
+        Comments: comments,
       };
 
-      const endpoint = isEdit ? "/api/update-records" : "/api/add-inventory";
-      const method = isEdit ? "PUT" : "POST";
+      // If ID = 0, it's new, else edit
+      const method = selectedReport.ID === 0 ? "POST" : "PUT";
 
-      const res = await fetch(endpoint, {
+      const res = await fetch("/api/add-inventory", {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Request failed");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data?.error || "Failed to save report");
+      }
 
+      // Optionally refresh the reports
       await fetchReports();
+
+      alert("Report saved successfully!");
       setIsEditOpen(false);
-    } catch (err) {
-      alert("Save error: " + (err as any).message);
-      console.error(err);
+      setSelectedReport(null);
+      setValidationDate("");
+      setNextValidationDate("");
+      setComments("");
+    } catch (err: any) {
+      alert("Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!hasFetchedReports.current) {
-      fetchReports();
-      hasFetchedReports.current = true;
-    }
-  }, []);
+  /* ==================== HANDLE EMAIL SETUP ==================== */
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notificationEmail) return alert("Please enter an email");
 
-  useEffect(() => {
-    if (isEmailSetupOpen) {
-      // Fetch current saved email
-      (async () => {
-        try {
-          const res = await fetch("/api/setup-email");
-          if (!res.ok) throw new Error("Failed to fetch current email");
-          const data = await res.json();
-          setNotificationEmail(data.email || "");
-        } catch (err) {
-          console.error("Error fetching email:", err);
-          setNotificationEmail("");
-        }
-      })();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(notificationEmail))
+      return alert("Invalid email format");
+
+    try {
+      setEmailLoading(true);
+
+      const res = await fetch("/api/update-email-status", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ EmailSetup: notificationEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to save email setup");
+
+      alert("Email notifications setup successfully!");
+      setIsEmailSetupOpen(false);
+
+      await sendDueDateEmailsOnce(reports);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setEmailLoading(false);
     }
+  };
+
+  // Fetch saved email when modal opens
+  useEffect(() => {
+    if (!isEmailSetupOpen) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/setup-email");
+        if (!res.ok) throw new Error("Failed to fetch current email");
+        const data = await res.json();
+        setNotificationEmail(data.email || "");
+      } catch (err) {
+        console.error("Error fetching email:", err);
+        setNotificationEmail("");
+      }
+    })();
   }, [isEmailSetupOpen]);
 
+  /* ==================== TABLE FILTERING ==================== */
   const filtered = useMemo(() => {
     let data =
       yearFilter === "all"
@@ -373,11 +366,9 @@ export default function Reports() {
               yearFilter,
           );
 
-    if (statusFilter !== "all") {
-      data = data.filter((r) => deriveStatus(r, now) === statusFilter);
-    }
-
-    if (personQuery.trim() !== "") {
+    if (statusFilter !== "all")
+      data = data.filter((r) => deriveStatus(r, now.current) === statusFilter);
+    if (personQuery.trim()) {
       const needle = personQuery.trim().toLowerCase();
       data = data.filter((r) =>
         (r.Person ?? "").toLowerCase().includes(needle),
@@ -385,9 +376,9 @@ export default function Reports() {
     }
 
     return data;
-  }, [reports, yearFilter, statusFilter, personQuery, now]); // <- include `now` so it refilters dynamically
+  }, [reports, yearFilter, statusFilter, personQuery]);
 
-  /* ================= TABLE COLUMNS ================= */
+  /* ==================== TABLE COLUMNS ==================== */
   const columns: ColumnDef<Report>[] = [
     { accessorKey: "SampleNo", header: "SampleNo" },
     { accessorKey: "Items", header: "Items" },
@@ -395,12 +386,11 @@ export default function Reports() {
     { accessorKey: "PartName", header: "Part Name" },
     { accessorKey: "ValidationDate", header: "Validation Date" },
     { accessorKey: "NextValidationDate", header: "Next Validation Date" },
-
     {
       id: "status",
       header: "Remarks Status",
       cell: ({ row }) => {
-        const status = deriveStatus(row.original, now); // <- use `now` here dynamically
+        const status = deriveStatus(row.original, now.current);
         const color =
           status === "Finish"
             ? "bg-green-100 text-green-700"
@@ -417,7 +407,6 @@ export default function Reports() {
         );
       },
     },
-
     { accessorKey: "Remarks", header: "Remarks" },
     {
       accessorKey: "Person",
@@ -429,7 +418,6 @@ export default function Reports() {
       header: "Comments",
       cell: ({ row }) => <CommentCell value={row.original.Comments} />,
     },
-
     {
       id: "actions",
       header: () => <div className="text-center">Actions</div>,
@@ -449,19 +437,13 @@ export default function Reports() {
             <Pencil className="h-4 w-4 text-blue-600" />
           </Button>
 
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => handleDelete(row.original.ID)}
-            disabled={loading}
-          >
+          <Button size="icon" variant="ghost">
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
         </div>
       ),
     },
   ];
-
   const table = useReactTable({
     data: filtered,
     columns,
@@ -563,7 +545,7 @@ export default function Reports() {
           >
             <SheetTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Setup Email Notifications
+                Email Notif
               </Button>
             </SheetTrigger>
 
