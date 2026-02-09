@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 
 // create new records
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     const {
       SampleNo,
@@ -53,7 +53,7 @@ export async function POST(request) {
       JSON.stringify({
         message: "Record created successfully",
         recordId: info.lastInsertRowid,
-        usedEmail: emailToUse, // optional: show which email was used
+        usedEmail: emailToUse,
       }),
       { status: 201, headers: { "Content-Type": "application/json" } }
     );
@@ -66,7 +66,7 @@ export async function POST(request) {
 }
 
 // PUT: update an existing record
-export async function PUT(request) {
+export async function PUT(request: Request) {
   try {
     const { ID, SampleNo, Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person } = await request.json();
 

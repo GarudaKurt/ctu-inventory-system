@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 
 // PUT: update an existing record
-export async function PUT(request) {
+export async function PUT(request: Request) {
   try {
     const { ID, SampleNo, Items, Program, PartName, ValidationDate, NextValidationDate, Remarks, Comments, Person } = await request.json();
 

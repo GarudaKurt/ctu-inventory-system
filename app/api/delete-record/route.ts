@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 
 import { db } from "@/lib/db";
 
-export async function DELETE(request) {
+export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const idFromQuery = searchParams.get("id");

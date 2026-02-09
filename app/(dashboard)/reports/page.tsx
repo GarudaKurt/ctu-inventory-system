@@ -197,7 +197,6 @@ export default function Reports() {
     return () => clearInterval(id);
   }, []);
 
-  /* ==================== FETCH REPORTS ==================== */
   const fetchReports = async () => {
     try {
       const res = await fetch("/api/fetch-reports", { cache: "no-store" });
@@ -232,7 +231,6 @@ export default function Reports() {
     fetchReports();
   }, []);
 
-  /* ==================== SEND DUE DATE EMAILS ONCE ==================== */
   const sendDueDateEmailsOnce = async (reports: Report[]) => {
     const dueReports = reports.filter(
       (r) => deriveStatus(r, now.current) === "Due Date" && r.IsEmailSend !== 1,
@@ -277,7 +275,6 @@ export default function Reports() {
         Comments: comments,
       };
 
-      // If ID = 0, it's new, else edit
       const method = selectedReport.ID === 0 ? "POST" : "PUT";
 
       const res = await fetch("/api/add-inventory", {
@@ -307,7 +304,7 @@ export default function Reports() {
     }
   };
 
-    const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number) => {
     if (!id) return;
     const ok = confirm("Are you sure you want to delete this record?");
     if (!ok) return;
@@ -327,7 +324,6 @@ export default function Reports() {
     }
   };
 
-  /* ==================== HANDLE EMAIL SETUP ==================== */
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notificationEmail) return alert("Please enter an email");
@@ -761,7 +757,6 @@ export default function Reports() {
                   />
                 </div>
 
-                {/* COMMENTS */}
                 <div>
                   <Label>Comments</Label>
                   <textarea
