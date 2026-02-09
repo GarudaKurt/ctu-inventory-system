@@ -307,6 +307,26 @@ export default function Reports() {
     }
   };
 
+    const handleDelete = async (id: number) => {
+    if (!id) return;
+    const ok = confirm("Are you sure you want to delete this record?");
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/delete-record?id=${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      await fetchReports();
+    } catch (err) {
+      alert("Delete error: " + (err as any).message);
+      console.error(err);
+    }
+  };
+
   /* ==================== HANDLE EMAIL SETUP ==================== */
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -436,8 +456,12 @@ export default function Reports() {
           >
             <Pencil className="h-4 w-4 text-blue-600" />
           </Button>
-
-          <Button size="icon" variant="ghost">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => handleDelete(row.original.ID)}
+            disabled={loading}
+          >
             <Trash2 className="h-4 w-4 text-red-600" />
           </Button>
         </div>
