@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+## 🛠 How to Set Up the Project (Windows)
 
-## Getting Started
+### 1️⃣ Install Node.js  
+Download and install Node.js from:  
+https://nodejs.org/en/download  
 
-First, run the development server:
+> After installing, restart your PC or Command Prompt if needed.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+### 2️⃣ Download the Project from GitHub  
+1. Open the repository on GitHub  
+2. Click **Code** → **Download ZIP**  
+3. Extract the downloaded ZIP file  
+
+---
+
+### 3️⃣ Move the Project Folder  
+Move the extracted folder to your **Desktop**  
+Example folder name:
+```
+ctu-inventory-system-main
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4️⃣ Open Command Prompt  
+1. Press **Windows Key**  
+2. Search for **cmd**  
+3. Open **Command Prompt**
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+---
 
-## Learn More
+### 5️⃣ Navigate to the Project Folder  
+Run these commands in CMD:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd Desktop
+cd ctu-inventory-system-main
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+You should now be inside:
+```
+Desktop\ctu-inventory-system-main
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+### 6️⃣ Install Dependencies  
+Run:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+⏳ This may take **5–15 minutes** depending on your internet speed.  
+Please wait until it finishes.
+
+---
+
+
+
+### (Optional) Verify Node.js Installation  
+```bash
+node -v
+npm -v
+```
+
+If both show version numbers, Node.js is installed correctly ✅
+
+---
+
+### ❗ Common Issues
+
+**npm is not recognized**
+- Restart CMD  
+- Reinstall Node.js and make sure **Add to PATH** is checked  
+
+**Installation fails**
+- Make sure you are inside `ctu-inventory-system-main`  
+- Try running CMD as Administrator  
