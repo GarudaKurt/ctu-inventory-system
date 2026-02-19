@@ -248,18 +248,19 @@ export default function Reports() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send emails");
 
-      // Update local state to mark as emailed
       setReports((prev) =>
         prev.map((r) =>
-          dueReports.find((d) => d.ID === r.ID) ? { ...r, IsEmailSend: 1 } : r,
+          dueReports.some((d) => d.ID === r.ID)
+            ? { ...r, IsEmailSend: 1 }
+            : r,
         ),
       );
 
-      await fetchReports(); // refresh from backend
     } catch (err) {
       console.error("[ERROR] sendDueDateEmailsOnce failed:", err);
     }
   };
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

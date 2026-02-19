@@ -60,22 +60,11 @@ Please wait until it finishes.
 
 
 
-### (Optional) Verify Node.js Installation  
-```bash
-node -v
-npm -v
-```
-
-If both show version numbers, Node.js is installed correctly ✅
-
----
-
-### ❗ Common Issues
-
-**npm is not recognized**
-- Restart CMD  
-- Reinstall Node.js and make sure **Add to PATH** is checked  
-
-**Installation fails**
-- Make sure you are inside `ctu-inventory-system-main`  
-- Try running CMD as Administrator  
+### How to setup auto start-up
+1. Edit this **lunch_system.bat** press right click and **Edit in Notepad**
+2. Edit this **app_system.vbs** press right click and **Edit in Notepad**
+3. **In your keyboard: Press Windows + R**
+4. The startup folder will appear
+5. Under your folder ctu-admin-dashboard
+   - paste this file **app_system.vbs**
+     
