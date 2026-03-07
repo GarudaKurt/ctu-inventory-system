@@ -63,7 +63,7 @@ Please wait until it finishes.
 ### How to setup auto start-up
 1. Edit this **lunch_system.bat** press right click and **Edit in Notepad**
 2. Edit this **app_system.vbs** press right click and **Edit in Notepad**
-3. **In your keyboard: Press Windows + R**
+3. **In your keyboard: Press Windows + R** eh type lang ni ``shell:startup``
 4. The startup folder will appear
 5. Under your folder ctu-admin-dashboard
    - paste this file **app_system.vbs**
