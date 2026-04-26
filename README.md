@@ -6,6 +6,10 @@ https://nodejs.org/en/download
 
 > After installing, restart your PC or Command Prompt if needed.
 
+### 1️⃣ Install Node.js  
+Download and install Node.js from:  
+https://nodejs.org/en/download 
+
 ---
 
 ### 2️⃣ Download the Project from GitHub  
@@ -13,6 +17,17 @@ https://nodejs.org/en/download
 2. Click **Code** → **Download ZIP**  
 3. Extract the downloaded ZIP file  
 
+---
+---
+### .env.local setup
+# .env.local
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+
+EMAIL_USER=floresjonel926@gmail.com
+EMAIL_PASS=iarcliudvwtxwlro
 ---
 
 ### 3️⃣ Move the Project Folder  
