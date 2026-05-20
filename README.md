@@ -26,8 +26,8 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
 
-EMAIL_USER=floresjonel926@gmail.com
-EMAIL_PASS=iarcliudvwtxwlro
+EMAIL_USER=
+EMAIL_PASS=
 ---
 
 ### 3️⃣ Move the Project Folder  
