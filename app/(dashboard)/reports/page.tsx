@@ -59,12 +59,12 @@ type Report = {
   Items: string;
   Program: string;
   PartName: string;
-  ValidationDate: string; // MM/DD/YYYY
-  NextValidationDate: string; // MM/DD/YYYY
+  ValidationDate: string;
+  NextValidationDate: string;
   Remarks: RemarksValue;
   Person: string;
   Comments?: string;
-  IsEmailSend?: number; // 0 or 1
+  IsEmailSend?: number;
 };
 
 /* ================= DATE HELPERS ================= */
@@ -174,6 +174,8 @@ export default function Reports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+  // ✅ FIX 1: Track the user's chosen mode separately
+  const [pageSizeMode, setPageSizeMode] = useState<string>("10");
 
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | StatusValue>("all");
@@ -219,8 +221,6 @@ export default function Reports() {
       }));
 
       setReports(normalized);
-
-      // Send due date emails once after fetching
       await sendDueDateEmailsOnce(normalized);
     } catch (err) {
       console.error("[ERROR] fetchReports failed:", err);
@@ -230,6 +230,35 @@ export default function Reports() {
   useEffect(() => {
     fetchReports();
   }, []);
+
+  // ✅ FIX 1b: Keep pageSize in sync when filtered count changes and mode is "all"
+  const filtered = useMemo(() => {
+    let data =
+      yearFilter === "all"
+        ? reports
+        : reports.filter(
+            (r) =>
+              parseMMDDYYYY(r.ValidationDate)?.getFullYear().toString() ===
+              yearFilter,
+          );
+
+    if (statusFilter !== "all")
+      data = data.filter((r) => deriveStatus(r, now.current) === statusFilter);
+    if (personQuery.trim()) {
+      const needle = personQuery.trim().toLowerCase();
+      data = data.filter((r) =>
+        (r.Person ?? "").toLowerCase().includes(needle),
+      );
+    }
+
+    return data;
+  }, [reports, yearFilter, statusFilter, personQuery]);
+
+  useEffect(() => {
+    if (pageSizeMode === "all") {
+      setPageSize(filtered.length || 1);
+    }
+  }, [filtered.length, pageSizeMode]);
 
   const sendDueDateEmailsOnce = async (reports: Report[]) => {
     const dueReports = reports.filter(
@@ -255,12 +284,10 @@ export default function Reports() {
             : r,
         ),
       );
-
     } catch (err) {
       console.error("[ERROR] sendDueDateEmailsOnce failed:", err);
     }
   };
-
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,7 +316,6 @@ export default function Reports() {
         throw new Error(data?.error || "Failed to save report");
       }
 
-      // Optionally refresh the reports
       await fetchReports();
 
       alert("Report saved successfully!");
@@ -356,7 +382,6 @@ export default function Reports() {
     }
   };
 
-  // Fetch saved email when modal opens
   useEffect(() => {
     if (!isEmailSetupOpen) return;
     (async () => {
@@ -372,32 +397,27 @@ export default function Reports() {
     })();
   }, [isEmailSetupOpen]);
 
-  /* ==================== TABLE FILTERING ==================== */
-  const filtered = useMemo(() => {
-    let data =
-      yearFilter === "all"
-        ? reports
-        : reports.filter(
-            (r) =>
-              parseMMDDYYYY(r.ValidationDate)?.getFullYear().toString() ===
-              yearFilter,
-          );
-
-    if (statusFilter !== "all")
-      data = data.filter((r) => deriveStatus(r, now.current) === statusFilter);
-    if (personQuery.trim()) {
-      const needle = personQuery.trim().toLowerCase();
-      data = data.filter((r) =>
-        (r.Person ?? "").toLowerCase().includes(needle),
-      );
-    }
-
-    return data;
-  }, [reports, yearFilter, statusFilter, personQuery]);
-
   /* ==================== TABLE COLUMNS ==================== */
   const columns: ColumnDef<Report>[] = [
-    { accessorKey: "SampleNo", header: "SampleNo" },
+    // ✅ FIX 2: Incremental row number column
+    {
+      id: "rowNumber",
+      header: () => <div className="text-center">#</div>,
+      cell: ({ row }) => (
+        <div className="text-center text-sm text-gray-500">
+          {pageIndex * pageSize + row.index + 1}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "SampleNo",
+      header: "SampleNo",
+      cell: ({ row }) => (
+        <div className="whitespace-normal break-words max-w-[50ch]">
+          {row.original.SampleNo}
+        </div>
+      ),
+    },
     { accessorKey: "Items", header: "Items" },
     { accessorKey: "Program", header: "Program" },
     { accessorKey: "PartName", header: "Part Name" },
@@ -465,6 +485,7 @@ export default function Reports() {
       ),
     },
   ];
+
   const table = useReactTable({
     data: filtered,
     columns,
@@ -505,7 +526,6 @@ export default function Reports() {
             </SelectContent>
           </Select>
 
-          {/* STATUS FILTER */}
           <Select
             value={statusFilter}
             onValueChange={(v: "all" | StatusValue) => {
@@ -525,7 +545,6 @@ export default function Reports() {
             </SelectContent>
           </Select>
 
-          {/* PERSON SEARCH */}
           <div className="w-[200px]">
             <Input
               value={personQuery}
@@ -537,11 +556,12 @@ export default function Reports() {
             />
           </div>
 
-          {/* ROW SELECTOR */}
+          {/* ✅ FIX 1: Use pageSizeMode as the controlled value */}
           <Select
-            value={pageSize === filtered.length ? "all" : pageSize.toString()}
+            value={pageSizeMode}
             onValueChange={(val) => {
               setPageIndex(0);
+              setPageSizeMode(val);
               if (val === "all") setPageSize(filtered.length || 1);
               else setPageSize(Number(val));
             }}
@@ -651,7 +671,6 @@ export default function Reports() {
                 <SheetDescription>Fill in all fields</SheetDescription>
               </SheetHeader>
 
-              {/* FORM */}
               <form className="mt-4 space-y-4" onSubmit={handleSave}>
                 <div>
                   <Label>Master/SampleNo.</Label>
@@ -725,7 +744,6 @@ export default function Reports() {
                   />
                 </div>
 
-                {/* REMARKS */}
                 <div>
                   <Label>Remarks</Label>
                   <Select
@@ -745,7 +763,6 @@ export default function Reports() {
                   </Select>
                 </div>
 
-                {/* PERSON */}
                 <div>
                   <Label>Person</Label>
                   <Input
@@ -845,7 +862,7 @@ export default function Reports() {
         </Table>
       </div>
 
-      <div className="mt-4 ">
+      <div className="mt-4">
         <Pagination className="flex justify-end">
           <PaginationContent>
             <PaginationItem>

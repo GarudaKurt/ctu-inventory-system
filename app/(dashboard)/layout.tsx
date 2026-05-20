@@ -8,16 +8,13 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
+
 import { Button } from "@/components/ui/button";
-import {
-  LogOut,
-  FolderCheck,
-} from "lucide-react";
+import { LogOut, FolderCheck } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardLayout({
@@ -25,12 +22,13 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-
   return (
     <SidebarProvider>
-      <div className="flex h-screen">
+      <div className="flex h-screen w-screen overflow-hidden">
+
         {/* SIDEBAR */}
-        <Sidebar className="bg-[#2C2C2C] text-white">
+        <Sidebar className="bg-[#2C2C2C] text-white w-56 shrink-0">
+
           <SidebarHeader className="flex flex-col gap-2 px-4 py-3 border-b border-gray-700">
             <div className="flex items-center gap-2">
               <img src="/img/bg.png" className="h-8 w-8" />
@@ -41,6 +39,7 @@ export default function DashboardLayout({
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupLabel>Menu</SidebarGroupLabel>
+
               <SidebarMenu>
                 <SidebarMenuItem>
                   <Link href="/reports">
@@ -51,20 +50,26 @@ export default function DashboardLayout({
                   </Link>
                 </SidebarMenuItem>
               </SidebarMenu>
+
             </SidebarGroup>
           </SidebarContent>
 
           <SidebarFooter className="border-t border-gray-700 p-4">
-            <Link href={"/"}>
+            <Link href="/">
               <Button variant="destructive" className="w-full">
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
               </Button>
             </Link>
           </SidebarFooter>
+
         </Sidebar>
 
-        <main className="flex-1 bg-[#F3F3F3] p-6 w-full">{children}</main>
+        {/* MAIN CONTENT */}
+        <main className="flex-1 min-w-0 bg-[#F3F3F3] p-6 overflow-auto">
+          {children}
+        </main>
+
       </div>
     </SidebarProvider>
   );
